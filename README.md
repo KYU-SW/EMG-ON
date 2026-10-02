@@ -1,4 +1,4 @@
-# EMG-ON
+# Consist
 
 # EMG-ON : 근전도 기반 운동 수행 모니터링 시스템
 
