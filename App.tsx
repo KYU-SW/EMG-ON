@@ -1,5 +1,5 @@
 // =========================================================
-// MyoTrack — 운동 / 실시간 측정 / 운동 결과 화면 (피드백 + 영상 추천 담당 부분)
+// EMG:ON — 운동 / 실시간 측정 / 운동 결과 화면 (피드백 + 영상 추천 담당 부분)
 // 맨 아래 "테스트 값 바꾸기"를 열어 숫자를 바꾸면 화면이 바로 바뀐다.
 // (나중에는 이 숫자들이 센서·백엔드에서 자동으로 들어온다)
 // =========================================================
@@ -64,7 +64,7 @@ export default function App() {
     <div className="app">
       {/* ===== 상단 바 (데모와 같은 구조) ===== */}
       <header className="appbar">
-        <p className="logo">Myo<span>Track</span></p>
+        <p className="logo">EMG<span>:ON</span></p>
         <nav className="tabs" aria-label="메뉴">
           <button className="tab" disabled title="다른 팀원 담당">홈</button>
           <button className="tab" aria-current={view !== "live" ? "page" : undefined} onClick={() => setView("before")}>운동</button>
@@ -298,7 +298,6 @@ function FeedbackCard(props: { item: FeedbackItem; result: SessionResult; plan: 
       </p>
 
       {item.id === "reps" && <RepsDots done={result.validReps} target={plan.targetReps} />}
-      {item.id === "hold" && <HoldGauge value={result.avgHold} target={plan.targetHold} />}
       {item.id === "rest" && <RhythmLine hold={result.avgHold} rest={result.avgRest} />}
       {item.id === "flow" && <FlowBars early={result.earlyActivation} late={result.lateActivation} tone={item.tone} />}
 
@@ -319,34 +318,6 @@ function RepsDots(props: { done: number; target: number }) {
         ))}
       </div>
       <p className="g-caption"><b>{props.done}회</b> 기록 / 목표 {props.target}회</p>
-    </div>
-  );
-}
-
-// 수축 유지: 게이지 + 목표선 + 모자란 만큼 빗금
-function HoldGauge(props: { value: number; target: number }) {
-  const max = Math.max(props.target * 1.5, props.value * 1.1);
-  const v = (props.value / max) * 100;
-  const t = (props.target / max) * 100;
-  const ticks = Array.from({ length: Math.floor(max) + 1 }, (_, i) => i);
-  return (
-    <div className="g-hold">
-      <div className="g-hold-track">
-        <div className="g-hold-fill" style={{ width: `${v}%` }}>
-          <span className="g-hold-value">{props.value}초</span>
-        </div>
-        {props.value < props.target && (
-          <div className="g-hold-gap" style={{ left: `${v}%`, width: `${t - v}%` }} />
-        )}
-        <div className="g-hold-target" style={{ left: `${t}%` }}>
-          <span>목표 {props.target}초</span>
-        </div>
-      </div>
-      <div className="g-ticks">
-        {ticks.map((n) => (
-          <span key={n} style={{ left: `${(n / max) * 100}%` }}>{n}</span>
-        ))}
-      </div>
     </div>
   );
 }

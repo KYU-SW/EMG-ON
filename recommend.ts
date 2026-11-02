@@ -118,7 +118,6 @@ const LATE_DROP_RATIO = 0.7; // 후반 활성도가 초반의 70% 미만이면 "
 
 // 단계 나누는 기준: 이것보다 더 부족하면 "기초" 영상
 const EASY_REPS_RATIO = 0.25; // 유효 횟수가 목표의 25% 미만
-const EASY_HOLD_RATIO = 0.7;  // 평균 유지가 목표의 70% 미만
 const EASY_REST_SEC = 0.5;    // 평균 이완이 0.5초 미만
 const EASY_LATE_RATIO = 0.5;  // 후반 활성도가 초반의 50% 미만
 
@@ -173,8 +172,8 @@ export function completionRate(result: SessionResult, plan: Plan): number {
 
 export function sessionFeedback(result: SessionResult, plan: Plan): FeedbackItem[] {
   const items: FeedbackItem[] = [];
-  const { validReps, avgHold, avgRest, earlyActivation, lateActivation } = result;
-  const { targetReps, targetHold } = plan;
+  const { validReps, avgRest, earlyActivation, lateActivation } = result;
+  const { targetReps } = plan;
 
   // ----- (1) 반복 횟수 -----
   if (validReps >= targetReps) {
@@ -198,27 +197,6 @@ export function sessionFeedback(result: SessionResult, plan: Plan): FeedbackItem
       metric: `${validReps}/${targetReps}회`, metricLabel: "유효 반복",
       title: `목표까지 ${targetReps - validReps}회 남았어요`,
       detail: `${targetReps}회 중 ${validReps}회가 기준을 넘는 수축으로 기록됐어요.`,
-    });
-  }
-
-  // ----- (2) 수축 유지 -----
-  const shortCount = result.holds.filter((h) => h < targetHold).length;
-  if (avgHold >= targetHold) {
-    items.push({
-      id: "hold", tone: "done", topic: "수축 유지",
-      metric: sec(avgHold), metricLabel: `평균 유지`,
-      title: "유지 시간 목표에 닿았어요",
-      detail: `평균 ${sec(avgHold)} 버텼어요. 목표는 ${sec(targetHold)}예요.`,
-    });
-  } else {
-    items.push({
-      id: "hold", tone: "check", topic: "수축 유지",
-      metric: sec(avgHold), metricLabel: `평균 유지`,
-      title: "버티는 시간이 목표보다 짧아요",
-      detail: `평균 ${sec(avgHold)} 버텼고, 목표 ${sec(targetHold)}까지 ${sec(targetHold - avgHold)} 모자라요.` +
-        (shortCount > 0 ? ` ${result.holds.length}회 중 ${shortCount}회가 목표보다 짧았어요.` : "") +
-        " 힘을 준 채로 속으로 천천히 숫자를 세어 보세요.",
-      video: pick("hold", avgHold / targetHold < EASY_HOLD_RATIO, `목표 유지 시간의 ${pct(avgHold / targetHold)}만큼 버텼어요`),
     });
   }
 
