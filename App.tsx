@@ -13,13 +13,38 @@ import {
   preExerciseVideos,
   completionRate,
   MIN_REST_SEC,
+  GENERAL_STEPS,
+  GENERAL_NAME,
+  generalNext,
+  generalVideo,
 } from "./recommend";
-import type { Plan, SessionResult, FeedbackItem, VideoCard, Tone } from "./recommend";
+import type { Plan, SessionResult, FeedbackItem, VideoCard, Tone, GeneralKind } from "./recommend";
 
 type View = "before" | "live" | "result";
 
+// 사용자 종류: 재활(팔/다리) 또는 일반(유산소/근력)
+type Mode = "arm" | "leg" | "cardio" | "strength";
+const isGeneral = (m: Mode): m is GeneralKind => m === "cardio" || m === "strength";
+
+// 재활 운동 정보
+const REHAB: Record<"arm" | "leg", { exercise: string; name: string; muscle: string }> = {
+  arm: { exercise: "biceps_curl", name: "팔꿈치 굽히기", muscle: "상완이두근" },
+  leg: { exercise: "calf_raise", name: "발뒤꿈치 들기", muscle: "비복근(종아리)" },
+};
+
 export default function App() {
   const [view, setView] = useState<View>("result");
+  const [mode, setModeRaw] = useState<Mode>("arm");
+
+  // ----- 일반 사용자: 고른 시간, 실제로 한 시간, 다음에 고른 시간 -----
+  const [chosenMin, setChosenMin] = useState(20);
+  const [minutesDone, setMinutesDone] = useState(20);
+  const [nextPick, setNextPick] = useState<number | null>(null);
+
+  const setMode = (m: Mode) => {
+    setModeRaw(m);
+    setNextPick(null);
+  };
 
   // ----- 운동 계획 (사용자가 전문가 지시대로 입력하는 값) -----
   const [targetReps, setTargetReps] = useState(10);
@@ -39,10 +64,11 @@ export default function App() {
   const [holdSec, setHoldSec] = useState(1.2);
   const [restSec, setRestSec] = useState(1.5);
 
+  const rehab = REHAB[mode === "leg" ? "leg" : "arm"];
   const plan: Plan = {
-    exercise: "biceps_curl",
-    exerciseName: "팔꿈치 굽히기",
-    muscleName: "상완이두근",
+    exercise: rehab.exercise,
+    exerciseName: rehab.name,
+    muscleName: rehab.muscle,
     targetReps, targetHold, allowIncrease, maxReps,
   };
   const result: SessionResult = {
@@ -60,6 +86,15 @@ export default function App() {
   const live = liveFeedback({ reps: validReps, contraction, holdSec, restSec }, plan);
   const change = earlyActivation > 0 ? Math.round(((lateActivation - earlyActivation) / earlyActivation) * 100) : 0;
 
+  // ----- 일반 사용자 계산 -----
+  const kind: GeneralKind = mode === "strength" ? "strength" : "cardio";
+  const steps = GENERAL_STEPS[kind];
+  const chosen = steps.includes(chosenMin) ? chosenMin : steps[0]; // 근력으로 바꿨는데 40분이면 10분으로
+  const gNext = generalNext(kind, chosen, { minutesDone });
+  const nextMin = nextPick !== null && steps.includes(nextPick) ? nextPick : gNext.suggested;
+  const pickChosen = (m: number) => { setChosenMin(m); setNextPick(null); };
+  const pickDone = (m: number) => { setMinutesDone(m); setNextPick(null); };
+
   return (
     <div className="app">
       {/* ===== 상단 바 (데모와 같은 구조) ===== */}
@@ -75,8 +110,80 @@ export default function App() {
       </header>
 
       <main className="page">
-        {/* =================== 운동 (시작 전) =================== */}
+        {/* =================== 운동 (시작 전): 사용자 종류 고르기 =================== */}
         {view === "before" && (
+          <section className="card">
+            <h2 className="card-title">어떤 운동을 할까요?</h2>
+            <ModePicker mode={mode} onChange={setMode} />
+          </section>
+        )}
+
+        {/* =================== 일반 사용자: 운동 준비 =================== */}
+        {view === "before" && isGeneral(mode) && (
+          <>
+            <PageTitle title={`${GENERAL_NAME[kind]} 홈트`} sub="원하는 시간을 고르면 그 시간에 맞는 영상을 보여드려요." />
+            <section className="card">
+              <h2 className="card-title">운동 시간</h2>
+              <p className="card-text">
+                10분 단위로 고를 수 있어요. {GENERAL_NAME[kind]}은 최대 {steps[steps.length - 1]}분까지예요.
+              </p>
+              <MinutePicker steps={steps} value={chosen} onChange={pickChosen} />
+              <VideoSet cards={generalVideo(kind, chosen, `${chosen}분 ${GENERAL_NAME[kind]} 영상`)} />
+              <button className="btn" onClick={() => setView("live")}>운동 시작</button>
+            </section>
+          </>
+        )}
+
+        {/* =================== 일반 사용자: 운동 중 =================== */}
+        {view === "live" && isGeneral(mode) && (
+          <>
+            <PageTitle title={`${GENERAL_NAME[kind]} 운동 중`} sub="영상을 따라 운동하세요." />
+            <section className="card live">
+              <p className="live-count">
+                <b>{gNext.done}</b>
+                <span>/ {chosen}분</span>
+              </p>
+              <h2 className="live-headline">
+                {gNext.done >= chosen ? "오늘 운동 시간을 채웠어요" : `${chosen - gNext.done}분 남았어요`}
+              </h2>
+              <div className="holdbar" aria-label="운동 진행">
+                <div className="holdbar-fill" style={{ width: `${gNext.rate}%` }} data-active />
+              </div>
+              <p className="holdbar-label">진행 {gNext.rate}%</p>
+              <button className="btn" onClick={() => setView("result")}>운동 끝내고 결과 보기</button>
+            </section>
+          </>
+        )}
+
+        {/* =================== 일반 사용자: 결과 =================== */}
+        {view === "result" && isGeneral(mode) && (
+          <>
+            <PageTitle title="운동 결과" sub={`${GENERAL_NAME[kind]} 홈트 결과입니다.`} />
+            <div className="metrics">
+              <Metric label="고른 시간" value={`${chosen}분`} />
+              <Metric label="운동한 시간" value={`${gNext.done}분`} />
+              <Metric label="완료율" value={`${gNext.rate}%`} />
+            </div>
+
+            <section className="card">
+              <h2 className="card-title">다음 운동 추천</h2>
+              <p className="card-text">{gNext.message} 시간은 직접 고를 수 있어요.</p>
+              <StepLadder steps={steps} today={chosen} suggested={gNext.suggested} />
+              <MinutePicker steps={steps} value={nextMin} suggested={gNext.suggested} onChange={setNextPick} />
+              <VideoSet
+                cards={generalVideo(
+                  kind,
+                  nextMin,
+                  nextMin === gNext.suggested ? "오늘 결과로 추천한 시간" : "직접 고른 시간",
+                )}
+              />
+              <button className="btn" disabled title="기록 화면은 다른 팀원 담당">저장된 기록 확인</button>
+            </section>
+          </>
+        )}
+
+        {/* =================== 재활: 운동 준비 =================== */}
+        {view === "before" && !isGeneral(mode) && (
           <>
             <PageTitle title="운동 준비" sub={`${plan.exerciseName}, ${plan.muscleName}`} />
 
@@ -99,8 +206,8 @@ export default function App() {
           </>
         )}
 
-        {/* =================== 실시간 측정 =================== */}
-        {view === "live" && (
+        {/* =================== 재활: 실시간 측정 =================== */}
+        {view === "live" && !isGeneral(mode) && (
           <>
             <PageTitle title="실시간 측정" sub="근수축이 감지될 때마다 횟수가 올라갑니다." />
 
@@ -132,8 +239,8 @@ export default function App() {
           </>
         )}
 
-        {/* =================== 운동 결과 =================== */}
-        {view === "result" && (
+        {/* =================== 재활: 운동 결과 =================== */}
+        {view === "result" && !isGeneral(mode) && (
           <>
             <PageTitle title="운동 결과" sub="이번 세션에서 측정된 수행 지표입니다." />
 
@@ -196,6 +303,17 @@ export default function App() {
           <summary>테스트 값 바꾸기</summary>
 
           <fieldset>
+            <legend>사용자 종류</legend>
+            <ModePicker mode={mode} onChange={setMode} />
+          </fieldset>
+
+          <fieldset>
+            <legend>일반 사용자</legend>
+            <NumberInput label="고른 시간(분)" value={chosenMin} onChange={pickChosen} step={10} />
+            <NumberInput label="실제로 한 시간(분)" value={minutesDone} onChange={pickDone} />
+          </fieldset>
+
+          <fieldset>
             <legend>운동 계획</legend>
             <NumberInput label="목표 횟수" value={targetReps} onChange={setTargetReps} />
             <NumberInput label="목표 유지시간(초)" value={targetHold} onChange={setTargetHold} step={0.1} />
@@ -227,6 +345,73 @@ export default function App() {
 // =========================================================
 // 화면 조각들
 // =========================================================
+
+// ----- 사용자 종류 고르기 -----
+function ModePicker(props: { mode: Mode; onChange: (m: Mode) => void }) {
+  const groups: { label: string; items: { m: Mode; text: string }[] }[] = [
+    { label: "재활", items: [{ m: "arm", text: "팔" }, { m: "leg", text: "다리" }] },
+    { label: "일반 사용자", items: [{ m: "cardio", text: "유산소" }, { m: "strength", text: "근력" }] },
+  ];
+  return (
+    <div className="modes">
+      {groups.map((g) => (
+        <div key={g.label} className="mode-group">
+          <span className="mode-label">{g.label}</span>
+          <div className="chips">
+            {g.items.map((it) => (
+              <button
+                key={it.m}
+                className="chip"
+                aria-pressed={props.mode === it.m}
+                onClick={() => props.onChange(it.m)}
+              >
+                {it.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ----- 10분 단위 시간 고르기 -----
+function MinutePicker(props: { steps: number[]; value: number; suggested?: number; onChange: (m: number) => void }) {
+  return (
+    <div className="chips minutes" role="group" aria-label="운동 시간">
+      {props.steps.map((m) => (
+        <button key={m} className="chip" aria-pressed={props.value === m} onClick={() => props.onChange(m)}>
+          {m}분
+          {props.suggested === m && <small>추천</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ----- 단계 사다리: 오늘 한 단계와 추천 단계 -----
+function StepLadder(props: { steps: number[]; today: number; suggested: number }) {
+  const max = props.steps[props.steps.length - 1];
+  return (
+    <div className="ladder" aria-hidden="true">
+      {props.steps.map((m) => (
+        <div
+          key={m}
+          className="ladder-step"
+          data-today={m === props.today}
+          data-next={m === props.suggested}
+          data-past={m < props.today}
+          style={{ height: `${(m / max) * 100}%` }}
+        >
+          <span>{m}</span>
+        </div>
+      ))}
+      <p className="ladder-key">
+        <i className="k-today" /> 오늘 <i className="k-next" /> 다음 추천
+      </p>
+    </div>
+  );
+}
 
 function PageTitle(props: { title: string; sub: string }) {
   return (

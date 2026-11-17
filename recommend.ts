@@ -8,7 +8,12 @@
 //   3) 다음 세션 안내            → nextSessionGuide()
 //   4) 운동 후 추천 영상          → recommendVideos()
 //   5) 운동 전 추천 영상          → preExerciseVideos()
+//   6) 일반 사용자(유산소/근력 홈트) → generalNext(), generalVideo()
 // 를 만들어 준다.
+//
+// 사용자 종류
+//   - 재활: 팔(팔꿈치 굽히기) / 다리(무릎 펴기) → 위 1~5번
+//   - 일반: 유산소(10~60분) / 근력(10~30분), 10분 단위로 사용자가 직접 고름 → 6번
 //
 // 원칙 (보고서 9장): 진단·판정 표현(정상/비정상, 좋음/나쁨, 피로, 근력 저하)은 쓰지 않고
 // 측정된 사실 + 다음에 해볼 수 있는 행동만 말한다.
@@ -51,7 +56,7 @@ export type FeedbackItem = {
 };
 
 // 운동 후 영상 자리: 문제 종류별로 하나씩
-export type Slot = "form" | "hold" | "rhythm" | "stretch";
+export type Slot = "form" | "rhythm" | "stretch";
 // 단계: basic = 기본 (목표에 가까울 때), easy = 기초 (목표와 차이가 클 때)
 export type Level = "basic" | "easy";
 export const LEVEL_NAME: Record<Level, string> = { basic: "기본", easy: "기초" };
@@ -61,9 +66,10 @@ export type VideoPick = { slot: Slot; level: Level; why: string };
 export type Video = { title: string; url: string; minutes: number; channel: string };
 
 export type ExerciseVideos = {
+  part: string;                       // 부위 이름 (팔, 다리)
   warmup: Video;                      // 운동 전: 준비운동
   sensor: Video;                      // 운동 전: 센서 붙이기
-  slots: Record<Slot, Record<Level, Video>>; // 운동 후: 자리 4개 x 단계 2개
+  slots: Record<Slot, Record<Level, Video>>; // 운동 후: 자리 3개 x 단계 2개
   cooldown: Video;                    // 운동 후: 다 잘했을 때 마무리
 };
 
@@ -72,12 +78,14 @@ export type ExerciseVideos = {
 //    - 링크·제목·채널은 따옴표 안만 바꾸면 된다.
 //    - minutes는 영상 보고 실제 길이(분)로 채우기. 0이면 화면에 안 보임.
 //    - channel이 ""인 건 채널 이름을 아직 확인 못 한 영상. 직접 보고 채우기.
-//    - 운동을 추가하려면 biceps_curl 덩어리를 통째로 복사해서 이름만 바꾸면 된다.
+//    - 운동을 추가하려면 knee_extension 덩어리를 통째로 복사해서 이름만 바꾸면 된다.
 // ---------------------------------------------------------
 const yt = (id: string) => `https://www.youtube.com/watch?v=${id}`;
 
 export const VIDEOS: Record<string, ExerciseVideos> = {
+  // ===================== 재활: 팔 (팔꿈치 굽히기) =====================
   biceps_curl: {
+    part: "팔",
     // ===== 운동 전 =====
     warmup: { title: "부상 막는 어깨 웜업 스트레칭",   url: yt("WGZd01qeviI"), minutes: 0, channel: "굿라이프" },
     sensor: { title: "아두이노 근전도 센서 사용해 보기", url: yt("2Bs195Hre5k"), minutes: 0, channel: "" }, // 채널 확인 필요
@@ -88,11 +96,6 @@ export const VIDEOS: Record<string, ExerciseVideos> = {
       form: {
         basic: { title: "덤벨 컬 바른 자세, 천천히 정확하게",  url: yt("F8RuUHwuYnI"), minutes: 0, channel: "필렁이 TV" },
         easy:  { title: "팔꿈치 굽힘·폄 운동 따라 하기",       url: yt("c7m7soqPE-c"), minutes: 0, channel: "새나래병원" },
-      },
-      // 버티는 시간이 짧을 때
-      hold: {
-        basic: { title: "다치지 않게 상완이두근 강화하는 법",   url: yt("TkIbm1bgjkU"), minutes: 0, channel: "굿라이프" },
-        easy:  { title: "팔꿈치 굽힌 채로 버티기 (등척성 운동)", url: yt("2Zs9vIwyOgo"), minutes: 0, channel: "삼성서울병원" },
       },
       // 수축 사이 쉬는 시간이 짧을 때
       rhythm: {
@@ -106,6 +109,34 @@ export const VIDEOS: Record<string, ExerciseVideos> = {
       },
     },
     cooldown: { title: "운동 후 마무리 스트레칭",             url: yt("X8t6C07BJ80"), minutes: 0, channel: "" }, // 채널 확인 필요
+  },
+
+  // ===================== 재활: 다리 (무릎 펴기) =====================
+  knee_extension: {
+    part: "다리",
+    // ===== 운동 전 =====
+    warmup: { title: "운동 전 몸풀기 전신 스트레칭",       url: yt("o1LHlczB8Jg"), minutes: 10, channel: "" }, // 채널 확인 필요
+    sensor: { title: "아두이노 근전도 센서 사용해 보기",    url: yt("2Bs195Hre5k"), minutes: 0, channel: "" },  // 채널 확인 필요
+
+    // ===== 운동 후 =====
+    slots: {
+      // 수축이 적게 기록됐을 때
+      form: {
+        basic: { title: "대퇴사두근 강화 운동법 따라 하기",     url: yt("_J--WO7LCzw"), minutes: 0, channel: "시화병원" },
+        easy:  { title: "누워서 하는 대퇴사두근 운동",          url: yt("tu2wW8nEl9Y"), minutes: 0, channel: "" }, // 채널 확인 필요
+      },
+      // 수축 사이 쉬는 시간이 짧을 때 (팔과 같은 영상)
+      rhythm: {
+        basic: { title: "근력 운동할 때 호흡하는 법",           url: yt("Pw2SB3yJIkA"), minutes: 0, channel: "키다리형" },
+        easy:  { title: "힘주기와 힘빼기 연습 (점진적 근육 이완법)", url: yt("WNEFsdPxBZM"), minutes: 0, channel: "" }, // 채널 확인 필요
+      },
+      // 후반으로 갈수록 활성도가 낮아질 때
+      stretch: {
+        basic: { title: "서서 하는 대퇴사두근 스트레칭",        url: yt("Aq0LY0i3ILg"), minutes: 0, channel: "삼성서울병원" },
+        easy:  { title: "대퇴사두근 스트레칭 기본",             url: yt("utTTwWDEOjs"), minutes: 0, channel: "" }, // 채널 확인 필요
+      },
+    },
+    cooldown: { title: "운동 후 마무리 스트레칭",              url: yt("X8t6C07BJ80"), minutes: 0, channel: "" }, // 채널 확인 필요
   },
 };
 
@@ -317,7 +348,101 @@ export function preExerciseVideos(exercise: string): VideoCard[] {
   const set = VIDEOS[exercise];
   if (!set) return [];
   return [
-    { video: set.warmup, reason: "운동 전에 어깨와 팔을 먼저 풀어 주세요." },
+    { video: set.warmup, reason: "운동 전에 몸을 먼저 풀어 주세요." },
     { video: set.sensor, reason: "센서를 붙이기 전에 한 번 보고 시작하세요." },
   ];
+}
+
+// =========================================================
+// 8. 일반 사용자 (유산소 / 근력 홈트)
+//    - 사용자가 종류와 시간(10분 단위)을 직접 고른다.
+//    - 유산소: 10 → 20 → 30 → 40 → 50 → 60분 (60분이 마지막)
+//    - 근력:   10 → 20 → 30분 (30분이 마지막, 부위 선택 없음)
+//    - 운동이 끝나면 한 시간을 보고 "다음엔 몇 분" 추천만 한다.
+//      최종 선택은 사용자가 한다.
+// =========================================================
+export type GeneralKind = "cardio" | "strength";
+
+export const GENERAL_NAME: Record<GeneralKind, string> = { cardio: "유산소", strength: "근력" };
+
+// 고를 수 있는 시간 (분)
+export const GENERAL_STEPS: Record<GeneralKind, number[]> = {
+  cardio: [10, 20, 30, 40, 50, 60],
+  strength: [10, 20, 30],
+};
+
+// 시간별 영상 (minutes는 영상 보고 실제 길이로 고치기)
+export const GENERAL_VIDEOS: Record<GeneralKind, Record<number, Video>> = {
+  cardio: {
+    10: { title: "관절 무리 없는 서서 하는 유산소 10분",   url: yt("-1xXC90r7Xg"), minutes: 10, channel: "" }, // 채널 확인 필요
+    20: { title: "도구 없이 하는 20분 유산소",             url: yt("QjuHjh1f12g"), minutes: 20, channel: "" }, // 채널 확인 필요
+    30: { title: "층간소음 없는 30분 유산소 초보 홈트",     url: yt("d3_OyL2b_is"), minutes: 30, channel: "" }, // 채널 확인 필요
+    40: { title: "층간소음 없는 40분 유산소 홈트",         url: yt("myNjmnvI6x0"), minutes: 40, channel: "" }, // 채널 확인 필요
+    50: { title: "50분 전신 근력 유산소 홈트",             url: yt("dY_HDYIiZHk"), minutes: 50, channel: "" }, // 채널 확인 필요 (근력 섞임)
+    60: { title: "60분 전신 유산소 근력 루틴",             url: yt("hyV5KPAOcUg"), minutes: 60, channel: "" }, // 채널 확인 필요 (근력 섞임)
+  },
+  strength: {
+    10: { title: "10분 기본 전신 근력 운동",               url: yt("21iOcDfoOGg"), minutes: 10, channel: "" }, // 채널 확인 필요
+    20: { title: "초보자를 위한 20분 전신 운동 (장비 없음)", url: yt("4rkI714pWxI"), minutes: 20, channel: "" }, // 채널 확인 필요
+    30: { title: "전신 서킷 30분",                         url: yt("XjHc3Uj23bU"), minutes: 30, channel: "" }, // 채널 확인 필요
+  },
+};
+
+// 기준 숫자: 고른 시간의 50% 미만만 했으면 한 단계 낮춰서 추천
+const GENERAL_DOWN_RATIO = 0.5;
+
+export type GeneralResult = {
+  minutesDone: number; // 실제로 운동한 시간(분)
+};
+
+export type GeneralNext = {
+  done: number;      // 실제로 한 시간
+  rate: number;      // 고른 시간 대비 한 비율(%)
+  suggested: number; // 다음에 추천하는 시간(분)
+  isLast: boolean;   // 마지막 단계인지
+  message: string;
+};
+
+export function generalNext(kind: GeneralKind, chosen: number, result: GeneralResult): GeneralNext {
+  const steps = GENERAL_STEPS[kind];
+  const idx = Math.max(0, steps.indexOf(chosen));
+  const last = steps[steps.length - 1];
+  const done = Math.max(0, Math.min(result.minutesDone, chosen));
+  const rate = chosen > 0 ? Math.round((done / chosen) * 100) : 0;
+  const name = GENERAL_NAME[kind];
+
+  // 끝까지 했을 때
+  if (done >= chosen) {
+    if (chosen >= last) {
+      return {
+        done, rate, suggested: chosen, isLast: true,
+        message: `${name} 마지막 단계인 ${last}분을 끝까지 했어요. 지금 시간을 꾸준히 이어가 보세요.`,
+      };
+    }
+    const up = steps[idx + 1];
+    return {
+      done, rate, suggested: up, isLast: false,
+      message: `${chosen}분을 끝까지 했어요. 다음에는 ${up}분에 도전해 볼 수 있어요.`,
+    };
+  }
+
+  // 절반도 못 했을 때 (10분이면 더 낮출 수 없음)
+  if (done < chosen * GENERAL_DOWN_RATIO && idx > 0) {
+    const down = steps[idx - 1];
+    return {
+      done, rate, suggested: down, isLast: false,
+      message: `${chosen}분 중 ${done}분 했어요. 다음에는 ${down}분부터 다시 해 보세요.`,
+    };
+  }
+
+  return {
+    done, rate, suggested: chosen, isLast: chosen >= last,
+    message: `${chosen}분 중 ${done}분 했어요. 다음에도 ${chosen}분으로 해 보세요.`,
+  };
+}
+
+// 고른 시간에 맞는 영상
+export function generalVideo(kind: GeneralKind, minutes: number, reason: string): VideoCard[] {
+  const video = GENERAL_VIDEOS[kind][minutes];
+  return video ? [{ video, reason }] : [];
 }
